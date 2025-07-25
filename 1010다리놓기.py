@@ -85,25 +85,31 @@
 
 N, M = N-1, M-1 + N-1, M
 
+더 효율적으로 풀기
 '''
+from sys import stdin
+
+sinput = stdin.readline
+
 dp = [[0] * 30 for _ in range(30)]
 
-for i in range(30):
+dp[0][0] = 1
+dp[1][0] = 1
+dp[0][1] = 1
+dp[1][1] = 1
+
+for i in range(2, 30):
     dp[i][0] = 1
     dp[0][i] = 1
     dp[i][i] = 1
     dp[i][1] = i
     dp[1][i] = i
-
-for i in range(1, 30):
-    for j in range(1, 30):
+    for j in range(2, i+1):
         if dp[i][j] == 0:
             dp[i][j] += dp[i-1][j-1] + dp[i-1][j] 
 
-T = int(input())
+T = int(sinput())
 
 for i in range(T):
-    lst = list(map(int, input().split()))
-    A = max(lst)
-    B = min(lst)
-    print(dp[A][B])
+    lst = list(map(int, sinput().split()))
+    print(dp[max(lst)][min(lst)])
