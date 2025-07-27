@@ -3,36 +3,25 @@
 
 이것도 브루트포스로 풀어보기
 '''
-from copy import deepcopy
+answer = 0
 
+def back_tracking(x):
+    global answer
 
-max_ = 0
-
-def foo(templst, i, result):
-    global max_
-
-    if len(templst)<=2:
-        max_ = max(result, max_)
+    if len(lst) <= 2:
+        answer = max(x, answer)
         return 
 
-    templst.pop(i)
-    result += templst[i-1] * templst[i]
+    for i in range(1, len(lst)-1):
+        target = lst[i - 1] * lst[i + 1] 
 
-    for j in range(1, len(templst)-1):
-        foo(deepcopy(templst), j, result)
-
-    if len(templst)<=2:
-        max_ = max(result, max_)
-        return 
-
-    
+        v = lst.pop(i)
+        back_tracking(x + target)
+        lst.insert(i, v) 
 
 N = int(input())
 lst = list(map(int, input().split()))
-templst = deepcopy(lst)
-result = 0
 
-for i in range(1, len(deepcopy(templst))-1):
-    foo(deepcopy(templst), i, 0)
+back_tracking(0)
 
-print(max_)
+print(answer)
