@@ -1,50 +1,110 @@
+'''
+2차원 배열이라 보기 어려웠음, 그냥 1차원 배열로 풀고
 
-# ↑, ↖, ←, ↙, ↓, ↘, →, ↗
-# y, x
+백트래킹 하지도 못했는데.. ㅠㅠ
+
+index는 0부터
+'''
+
+# direction은 0부터
 from copy import deepcopy
 
 
 direction = [
-    [ 1, 0],
-    [ 1,-1],
-    [ 0,-1],
-    [-1,-1],
-    [-1, 0],
-    [-1, 1],
-    [ 0, 1],
-    [ 1, 1],
+    -4,
+    -5,
+    -1,
+     3,
+     4,
+     5,
+     1,
+    -3
 ]
 
-# 입력
-lst = []
-for _ in range(4):
-    data = list(map(int, input().split()))  # 8개 숫자 (물고기, 방향)*4
-    lst.append([[data[i], data[i + 1]] for i in range(0, 8, 2)])
+lst = [
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    [0, 0],
+    
+]
+answer = 0
+for w in range(4):
+    temp = list(map(int, input().split()))
+    for i in range(0,8,2):
+        lst[temp[i]-1] = [i+w*4, temp[i+1]]
+        # 0, 0은 미리 먹기
+        if w == 0 and i == 0:
+            answer += temp[i]
+            d = temp[i+1]
+            # index니까 -1
+            lst[temp[i]-1] = None
+
+print(lst)
+
+# 백트랙킹 시작 
+# 1차원 배열이라 접근할 때, y에 *4 해주면 됨
+def back_tracking(x, d, max_):
+    global lst
+    global answer
+    breakpoint()
+    # 초기화를 위한 deepcopy
+    temp_lst = deepcopy(lst)
+
+    # 물고기 이동시키기
+    for i in range(16):
+        # 보정값 to_direction
+        correction = 0
+        try:
+            to_direction = direction[lst[i][1]-1 + correction]
+        except Exception:
+            continue
+        for _ in range(8):
+            # 그쪽으로 갈 수 있는가?
+            # 갈 수 있다면
+            if (0 <= (lst[i][0] + to_direction)) and ((lst[i][0] + to_direction) <= 15) and lst[lst[i][0] + to_direction] != None:
+                # 교체
+                lst[i][0] = 
+                break
+            # 갈 수 없다면
+            else: 
+                # 45도 회전
+                correction -= 1
+                to_direction = direction[lst[i][1] - 1 + correction]
+
+    moved = False
+    # 상어가 움직일 위치 정하기
+    while 0 <= x + direction[d-1] and x + direction[d-1] <= 15:
+        back_tracking(x + direction[d-1], direction[d-1], max_)
+        lst = temp_lst
+        x += direction[d-1]
+        moved = True
+
+    # 만약 한 곳도 못정했다면, 최댓값과 비교해서 큰 값 넣기
+    if not moved:
+        answer = max(answer, max_)
+
+    
 
 
-# 백트랙킹
-def back_tracking(y, x):
-    # 그 자리 물고기 먹방
-    lst[y][x] = None
+# 확정 먹방은 여기에~
+# 여기 수정해야함
 
-    # 물고기의 이동
-    # 1번부터 16번까지 물고기 이동 (없으면 패스)
+back_tracking(0, d, answer)
 
-    # 1번부터 찾기
-    for i in range(1, 16+1):
-        for j in range(16):
-            if lst[j//4][j%4][0] == i:
-                my_dir = direction[lst[j//4][j%4][1]]
-
-                # 8방향 검사
-                for i in range(8):
-                    # 그쪽 방향으로 갈수 있는가??
-                    if (0 <= (y + my_dir[0]) < 4) and (0 <= (x + my_dir[1]) < 4):
-                        # 자리 교체
-                        temp = deepcopy(lst[j//4][j%4])
-                        lst[j//4][j%4] = (lst[j//4][j%4])
-                        break
-                    # 못가면
-                    else:
-                        # 45도 회전 이후 다시 검사
-                        my_dir = direction[lst[j//4][j%4][1]]-1
+print(answer)
