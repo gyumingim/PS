@@ -63,7 +63,7 @@ for i in range(N):
                         graph[y+yy][x+xx] == my_color and \
                         visited_2[y+yy][x+xx] == 0:
 
-                        # 아니라면 추가
+                        # 아니라면 추가 
                         queue.append((y+yy, x+xx, my_color))
 
                         # 그리고 visited_2 추가
