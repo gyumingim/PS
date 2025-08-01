@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>FastAPI WebSocket Test</title>
+</head>
+<body>
+  <h1>WebSocket 양방향 통신</h1>
+  <input id="messageInput" placeholder="메시지 입력" />
+  <button id="sendBtn">전송</button>
+  <ul id="messages"></ul>
+
+  <script>
+    const ws = new WebSocket("ws://localhost:8002/ws");
+    const input = document.getElementById("messageInput");
+    const btn = document.getElementById("sendBtn");
+    const list = document.getElementById("messages");
+
+    ws.onopen = () => {
+      console.log("Connected to server");
+    };
+
+    ws.onmessage = (event) => {
+      const item = document.createElement("li");
+      item.textContent = event.data;
+      list.appendChild(item);
+    };
+
+    ws.onclose = () => {
+      console.log("Disconnected");
+    };
+
+    btn.onclick = () => {
+      const msg = input.value;
+      ws.send(msg);
+      input.value = "";
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Socket.IO 단톡방</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    #messages { max-width: 600px; margin: 20px auto; padding: 0; list-style: none; border: 1px solid #ccc; height: 300px; overflow-y: auto; }
+    #messages li { margin: 5px; }
+  </style>
+</head>
+<body>
+  <h2>Socket.IO 단톡방</h2>
+  <label>방 ID: <input id="roomInput" value="room1"></label>
+  <label>닉네임: <input id="nameInput" placeholder="닉네임"></label>
+  <button id="joinBtn">입장</button>
+  <ul id="messages"></ul>
+  <input id="msgInput" placeholder="메시지 입력" disabled>
+  <button id="sendBtn" disabled>전송</button>
+
+  <script>
+    let socket;
+    const roomInput = document.getElementById('roomInput');
+    const nameInput = document.getElementById('nameInput');
+    const joinBtn = document.getElementById('joinBtn');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const messages = document.getElementById('messages');
+
+    joinBtn.onclick = () => {
+      const room = roomInput.value.trim();
+      const username = nameInput.value.trim();
+      if (!room || !username) return alert('방 ID와 닉네임을 입력하세요.');
+
+      socket = io('http://localhost:8000');
+
+      socket.on('connect', () => {
+        socket.emit('join', { room, username });
+        msgInput.disabled = false;
+        sendBtn.disabled = false;
+        joinBtn.disabled = true;
+      });
+
+      socket.on('message', (data) => {
+        const li = document.createElement('li');
+        li.textContent = data;
+        messages.appendChild(li);
+        messages.scrollTop = messages.scrollHeight;
+      });
+
+      socket.on('disconnect', () => {
+        const li = document.createElement('li');
+        li.textContent = '연결이 종료되었습니다.';
+        messages.appendChild(li);
+      });
+    };
+
+    sendBtn.onclick = () => {
+      const msg = msgInput.value.trim();
+      if (!msg) return;
+      socket.emit('message', { room: roomInput.value, username: nameInput.value, msg });
+      msgInput.value = '';
+    };
+  </script>
+</body>
+</html>
