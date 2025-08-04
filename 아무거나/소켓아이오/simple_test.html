@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🚀 간단 테스트</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { background: #0056b3; }
+    input {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      margin: 5px;
+      width: 200px;
+    }
+    #status {
+      padding: 10px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    .warning { background: #fff3cd; color: #856404; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Socket.IO 연결 테스트</h1>
+    <div id="status" class="warning">연결 중...</div>
+    
+    <div>
+      <h3>1단계: 방 생성</h3>
+      <input type="text" id="roomName" placeholder="방 이름" value="테스트방">
+      <button onclick="createRoom()">방 만들기</button>
+    </div>
+    
+    <div>
+      <h3>2단계: 방 입장</h3>
+      <input type="text" id="userName" placeholder="닉네임" value="테스터">
+      <button onclick="joinRoom()">입장하기</button>
+    </div>
+    
+    <div>
+      <h3>3단계: 메시지 전송</h3>
+      <input type="text" id="message" placeholder="메시지" value="안녕하세요!">
+      <button onclick="sendMessage()">전송</button>
+    </div>
+    
+    <div>
+      <h3>📜 로그</h3>
+      <div id="logs" style="background: #f8f9fa; padding: 15px; border-radius: 5px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+    </div>
+  </div>
+
+  <script>
+    let socket;
+    let currentRoom = null;
+    let currentUser = null;
+
+    function log(message) {
+      const logs = document.getElementById('logs');
+      const time = new Date().toLocaleTimeString();
+      logs.innerHTML += `<div>[${time}] ${message}</div>`;
+      logs.scrollTop = logs.scrollHeight;
+      console.log(message);
+    }
+
+    function updateStatus(text, type = 'warning') {
+      const status = document.getElementById('status');
+      status.textContent = text;
+      status.className = type;
+    }
+
+    // Socket.IO 연결
+    try {
+      socket = io('http://localhost:8000');
+      
+      socket.on('connect', () => {
+        log('✅ 서버 연결 성공!');
+        updateStatus('🟢 서버에 연결됨', 'success');
+        socket.emit('get_rooms');
+      });
+
+      socket.on('connect_error', (error) => {
+        log('❌ 연결 실패: ' + error.message);
+        updateStatus('🔴 연결 실패', 'error');
+      });
+
+      socket.on('disconnect', () => {
+        log('⚠️ 연결이 끊어짐');
+        updateStatus('🟡 연결 끊김', 'warning');
+      });
+
+      socket.on('room_created', (data) => {
+        log('🏠 방 생성 완료: ' + data.room_id);
+      });
+
+      socket.on('join_success', (data) => {
+        log('🚀 방 입장 성공: ' + JSON.stringify(data));
+        currentRoom = data.room;
+        currentUser = data.username;
+      });
+
+      socket.on('message', (data) => {
+        log('💬 메시지 수신: ' + JSON.stringify(data));
+      });
+
+      socket.on('error', (message) => {
+        log('❌ 에러: ' + message);
+      });
+
+      socket.on('rooms_list', (rooms) => {
+        log('📋 방 목록: ' + rooms.length + '개');
+      });
+
+    } catch (error) {
+      log('❌ Socket.IO 초기화 실패: ' + error.message);
+      updateStatus('🔴 초기화 실패', 'error');
+    }
+
+    function createRoom() {
+      const roomName = document.getElementById('roomName').value.trim();
+      if (!roomName) {
+        log('❌ 방 이름을 입력하세요');
+        return;
+      }
+      log('🏠 방 생성 요청: ' + roomName);
+      socket.emit('create_room', { room_id: roomName });
+    }
+
+    function joinRoom() {
+      const roomName = document.getElementById('roomName').value.trim();
+      const userName = document.getElementById('userName').value.trim();
+      
+      if (!roomName || !userName) {
+        log('❌ 방 이름과 닉네임을 입력하세요');
+        return;
+      }
+      
+      log('🚀 방 입장 요청: ' + roomName + ' / ' + userName);
+      socket.emit('join', { room: roomName, username: userName });
+    }
+
+    function sendMessage() {
+      const message = document.getElementById('message').value.trim();
+      
+      if (!message) {
+        log('❌ 메시지를 입력하세요');
+        return;
+      }
+      
+      if (!currentRoom || !currentUser) {
+        log('❌ 먼저 방에 입장하세요');
+        return;
+      }
+      
+      log('💬 메시지 전송: ' + message);
+      socket.emit('message', {
+        room: currentRoom,
+        username: currentUser,
+        msg: message
+      });
+    }
+  </script>
+</body>
+</html>
