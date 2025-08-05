@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💬 닉네임 입력 - BABA CHAT</title>
+  <link rel="stylesheet" href="../static/css/style.css">
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💬 BABA CHAT</h1>
+      <div class="header-controls">
+        <div id="connectionStatus" style="background: var(--warning-color); color: var(--text-color); padding: 8px 12px; border-radius: 4px; border: 2px solid var(--text-color); font-size: 13px; font-family: inherit; font-weight: bold; margin-right: 15px;">연결 중...</div>
+        <button class="theme-toggle" onclick="toggleTheme()">🌙 다크모드</button>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="room-select-screen">
+        <div class="welcome-section">
+          <h2>닉네임 설정</h2>
+          <p><strong id="selectedRoomName"></strong> 방에 입장합니다</p>
+        </div>
+        
+        <div class="create-room-form" style="max-width: 400px; margin: 0 auto;">
+          <form onsubmit="event.preventDefault(); joinRoom(); return false;">
+            <div class="form-group">
+              <label>닉네임 (최대 20자):</label>
+              <input type="text" id="nameInput" placeholder="사용할 닉네임을 입력하세요" maxlength="20" autofocus>
+              <div class="char-counter" id="nameCharCounter">0/20</div>
+            </div>
+            
+            <button type="submit">📞 들어가기!</button>
+            <button type="button" class="btn-secondary" onclick="backToRoomSelect()">← 뒤로가기</button>
+          </form>
+          <div id="joinError" class="error" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket;
+    let currentRoom = null;
+
+    // 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+      // URL에서 방 이름 가져오기
+      const urlParams = new URLSearchParams(window.location.search);
+      currentRoom = urlParams.get('room');
+      
+      if (!currentRoom) {
+        // 방 이름이 없으면 방 선택 페이지로 리다이렉트
+        window.location.href = 'rooms.html';
+        return;
+      }
+      
+      // 방 이름 표시
+      document.getElementById('selectedRoomName').textContent = currentRoom;
+      
+      connectSocket();
+      setupEventListeners();
+      loadTheme();
+    });
+
+    // Socket.IO 연결
+    function connectSocket() {
+      if (socket) return;
+      
+      try {
+        socket = io('http://localhost:8000', {
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5,
+          timeout: 20000
+        });
+
+        socket.on('connect', () => {
+          console.log('🔗 서버에 연결됨');
+          hideConnectionError();
+          updateConnectionStatus('connected');
+        });
+
+        socket.on('connect_error', (error) => {
+          console.error('❌ 연결 실패:', error);
+          updateConnectionStatus('error');
+          showConnectionError('서버에 연결할 수 없습니다. 서버가 실행중인지 확인해주세요.');
+        });
+
+        socket.on('disconnect', (reason) => {
+          console.log('❌ 서버 연결 끊김:', reason);
+          updateConnectionStatus('disconnected');
+          if (reason === 'io server disconnect') {
+            socket.connect();
+          }
+        });
+
+        socket.on('join_success', (data) => {
+          console.log('✅ 방 입장 성공:', data);
+          // 채팅 페이지로 이동하면서 방 정보와 사용자 정보 전달
+          window.location.href = `chat.html?room=${encodeURIComponent(data.room)}&username=${encodeURIComponent(data.username)}`;
+        });
+
+        socket.on('error', (message) => {
+          showError('joinError', message);
+        });
+
+      } catch (error) {
+        console.error('❌ Socket.IO 초기화 실패:', error);
+        showConnectionError('연결 초기화에 실패했습니다.');
+      }
+    }
+
+    // 방 입장
+    function joinRoom() {
+      try {
+        const username = document.getElementById('nameInput').value.trim();
+        
+        if (!username) {
+          showError('joinError', '닉네임을 입력해주세요.');
+          return;
+        }
+        
+        if (!currentRoom) {
+          showError('joinError', '선택된 방이 없습니다.');
+          return;
+        }
+        
+        if (!socket || !socket.connected) {
+          showError('joinError', '서버에 연결되지 않았습니다. 페이지를 새로고침해주세요.');
+          return;
+        }
+        
+        console.log('🚀 방 입장 요청 전송:', { room: currentRoom, username: username });
+        socket.emit('join', { room: currentRoom, username: username });
+        
+        // 버튼 비활성화
+        const btn = event?.target || document.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = '입장 중...';
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = '📞 들어가기!';
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('❌ 방 입장 에러:', error);
+        showError('joinError', '방 입장 중 오류가 발생했습니다.');
+      }
+    }
+
+    // 뒤로가기
+    function backToRoomSelect() {
+      window.location.href = 'rooms.html';
+    }
+
+    // 이벤트 리스너
+    function setupEventListeners() {
+      document.getElementById('nameInput').addEventListener('input', (e) => {
+        updateCharCounter('nameInput', 'nameCharCounter', 20);
+      });
+    }
+
+    // 유틸리티 함수들
+    function showError(elementId, message) {
+      const errorElement = document.getElementById(elementId);
+      errorElement.textContent = message;
+      errorElement.className = 'error';
+      errorElement.style.display = 'block';
+      setTimeout(() => {
+        errorElement.style.display = 'none';
+      }, 5000);
+    }
+
+    function showConnectionError(message) {
+      let errorDiv = document.getElementById('connectionError');
+      if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'connectionError';
+        errorDiv.style.cssText = `
+          position: fixed;
+          top: 80px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: var(--danger-color);
+          color: white;
+          padding: 15px 25px;
+          border-radius: 10px;
+          z-index: 2000;
+          box-shadow: var(--shadow-lg);
+        `;
+        document.body.appendChild(errorDiv);
+      }
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+
+    function hideConnectionError() {
+      const errorDiv = document.getElementById('connectionError');
+      if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+    }
+
+    function updateConnectionStatus(status) {
+      const statusDiv = document.getElementById('connectionStatus');
+      if (!statusDiv) return;
+      
+      switch (status) {
+        case 'connected':
+          statusDiv.textContent = '🟢 연결됨';
+          statusDiv.style.background = 'var(--success-color)';
+          break;
+        case 'disconnected':
+          statusDiv.textContent = '🔴 연결 끊김';
+          statusDiv.style.background = 'var(--danger-color)';
+          break;
+        case 'error':
+          statusDiv.textContent = '⚠️ 연결 오류';
+          statusDiv.style.background = 'var(--danger-color)';
+          break;
+        default:
+          statusDiv.textContent = '🟡 연결 중...';
+          statusDiv.style.background = 'var(--warning-color)';
+      }
+    }
+
+    function updateCharCounter(inputId, counterId, maxLength) {
+      const input = document.getElementById(inputId);
+      const counter = document.getElementById(counterId);
+      const length = input.value.length;
+      
+      counter.textContent = `${length}/${maxLength}`;
+      
+      counter.classList.remove('warning', 'danger');
+      if (length > maxLength * 0.8) {
+        counter.classList.add('warning');
+      }
+      if (length > maxLength * 0.95) {
+        counter.classList.add('danger');
+      }
+    }
+
+    function toggleTheme() {
+      const body = document.body;
+      const currentTheme = body.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      
+      body.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      
+      const themeBtn = document.querySelector('.theme-toggle');
+      themeBtn.textContent = newTheme === 'dark' ? '☀️ 라이트모드' : '🌙 다크모드';
+    }
+
+    function loadTheme() {
+      const savedTheme = localStorage.getItem('theme') || 'light';
+      document.body.setAttribute('data-theme', savedTheme);
+      
+      const themeBtn = document.querySelector('.theme-toggle');
+      themeBtn.textContent = savedTheme === 'dark' ? '☀️ 라이트모드' : '🌙 다크모드';
+    }
+  </script>
+</body>
+</html>
