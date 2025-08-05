@@ -1091,3 +1091,130 @@ button:disabled {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ============================================================================
+   🕒 최근 방 목록 스타일
+   ============================================================================ */
+
+.recent-rooms-section {
+  margin-bottom: 25px;
+  padding: 20px;
+  background: linear-gradient(135deg, var(--warning-color), var(--secondary-color));
+  border-radius: 15px;
+  border: 3px solid var(--text-color);
+  box-shadow: var(--shadow-lg);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.section-header h3 {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.clear-recent-btn {
+  background: var(--danger-color);
+  color: var(--text-color);
+  border: 2px solid var(--text-color);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-recent-btn:hover {
+  background: var(--danger-hover);
+  transform: translateY(-1px);
+}
+
+.recent-rooms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.room-item.recent-room {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid var(--text-color);
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.room-item.recent-room:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.recent-room .room-info {
+  flex: 1;
+}
+
+.recent-room .room-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--text-color);
+  margin-bottom: 4px;
+}
+
+.recent-room .room-meta {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.recent-room .room-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.recent-room .join-btn {
+  background: var(--success-color);
+  color: var(--text-color);
+  border: 2px solid var(--text-color);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.recent-room .join-btn:hover {
+  background: var(--success-hover);
+  transform: translateY(-1px);
+}
+
+/* 다크 테마 조정 */
+[data-theme="dark"] .recent-rooms-section {
+  background: linear-gradient(135deg, #451a03, #92400e);
+}
+
+[data-theme="dark"] .room-item.recent-room {
+  background: rgba(30, 41, 59, 0.9);
+}
+
+[data-theme="dark"] .room-item.recent-room:hover {
+  background: rgba(30, 41, 59, 1);
+}
+
+[data-theme="dark"] .recent-room .room-time {
+  background: rgba(255, 255, 255, 0.1);
+}

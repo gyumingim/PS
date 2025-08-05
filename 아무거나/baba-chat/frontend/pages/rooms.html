@@ -57,10 +57,79 @@
     let socket;
 
     // 초기화
+    // ============================================================================
+    // 🗄️ localStorage 상태 관리
+    // ============================================================================
+    
+    const AppState = {
+      // 현재 페이지 상태 저장
+      setCurrentPage: (page) => {
+        localStorage.setItem('baba_chat_current_page', page);
+        localStorage.setItem('baba_chat_last_visit', new Date().toISOString());
+      },
+      
+      // 마지막 방문 페이지 조회
+      getCurrentPage: () => {
+        return localStorage.getItem('baba_chat_current_page') || 'rooms';
+      },
+      
+      // 마지막 입장한 방 정보 저장
+      setLastRoom: (roomInfo) => {
+        localStorage.setItem('baba_chat_last_room', JSON.stringify(roomInfo));
+      },
+      
+      // 마지막 입장한 방 정보 조회
+      getLastRoom: () => {
+        const data = localStorage.getItem('baba_chat_last_room');
+        return data ? JSON.parse(data) : null;
+      },
+      
+      // 최근 방 목록 저장 (최대 5개)
+      addRecentRoom: (roomInfo) => {
+        let recent = JSON.parse(localStorage.getItem('baba_chat_recent_rooms') || '[]');
+        
+        // 중복 제거
+        recent = recent.filter(r => r.id !== roomInfo.id);
+        
+        // 최신순으로 추가
+        recent.unshift({
+          ...roomInfo,
+          last_visited: new Date().toISOString()
+        });
+        
+        // 최대 5개만 유지
+        recent = recent.slice(0, 5);
+        
+        localStorage.setItem('baba_chat_recent_rooms', JSON.stringify(recent));
+      },
+      
+      // 최근 방 목록 조회
+      getRecentRooms: () => {
+        return JSON.parse(localStorage.getItem('baba_chat_recent_rooms') || '[]');
+      },
+      
+      // 사용자 설정 저장
+      setSetting: (key, value) => {
+        const settings = JSON.parse(localStorage.getItem('baba_chat_settings') || '{}');
+        settings[key] = value;
+        localStorage.setItem('baba_chat_settings', JSON.stringify(settings));
+      },
+      
+      // 사용자 설정 조회
+      getSetting: (key, defaultValue = null) => {
+        const settings = JSON.parse(localStorage.getItem('baba_chat_settings') || '{}');
+        return settings[key] || defaultValue;
+      }
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
+      // 현재 페이지를 rooms로 설정
+      AppState.setCurrentPage('rooms');
+      
       connectSocket();
       setupEventListeners();
       loadTheme();
+      showRecentRooms();
     });
 
     // Socket.IO 연결
@@ -150,8 +219,31 @@
         return;
       }
       
+      // 최근 방 목록에 추가
+      const roomInfo = { 
+        id: roomId, 
+        name: roomId,
+        user_count: getCurrentRoomUserCount(roomId)
+      };
+      AppState.setLastRoom(roomInfo);
+      AppState.addRecentRoom(roomInfo);
+      
       // 방 이름을 URL 파라미터로 전달하며 닉네임 입력 페이지로 이동
       window.location.href = `join.html?room=${encodeURIComponent(roomId)}`;
+    }
+    
+    // 현재 방의 사용자 수 조회
+    function getCurrentRoomUserCount(roomId) {
+      const roomItems = document.querySelectorAll('.room-item:not(.recent-room)');
+      for (const item of roomItems) {
+        if (item.onclick && item.onclick.toString().includes(roomId)) {
+          const userCountElement = item.querySelector('.user-count');
+          if (userCountElement) {
+            return parseInt(userCountElement.textContent) || 0;
+          }
+        }
+      }
+      return 0;
     }
 
     // 방 생성
@@ -201,7 +293,82 @@
       });
     }
 
-    // 유틸리티 함수들
+    // ============================================================================
+    // 🕒 최근 방 목록 표시
+    // ============================================================================
+    
+    function showRecentRooms() {
+      const recentRooms = AppState.getRecentRooms();
+      if (recentRooms.length === 0) return;
+      
+      const roomsList = document.getElementById('roomsList');
+      
+      // 최근 방 섹션 생성
+      const recentSection = document.createElement('div');
+      recentSection.className = 'recent-rooms-section';
+      recentSection.innerHTML = `
+        <div class="section-header">
+          <h3>🕒 최근 방문한 방</h3>
+          <button class="clear-recent-btn" onclick="clearRecentRooms()">지우기</button>
+        </div>
+        <div class="recent-rooms-list" id="recentRoomsList"></div>
+      `;
+      
+      // 기존 방 목록 앞에 삽입
+      roomsList.insertBefore(recentSection, roomsList.firstChild);
+      
+      // 최근 방 목록 렌더링
+      const recentRoomsList = document.getElementById('recentRoomsList');
+      recentRooms.forEach(room => {
+        const roomElement = document.createElement('div');
+        roomElement.className = 'room-item recent-room';
+        roomElement.innerHTML = `
+          <div class="room-info">
+            <div class="room-name">${room.name || room.id}</div>
+            <div class="room-meta">
+              <span class="room-time">마지막 방문: ${formatTime(room.last_visited)}</span>
+            </div>
+          </div>
+          <button class="join-btn" onclick="joinRecentRoom('${room.id}', '${room.name || room.id}')">
+            입장
+          </button>
+        `;
+        recentRoomsList.appendChild(roomElement);
+      });
+    }
+    
+    function clearRecentRooms() {
+      if (confirm('최근 방문한 방 목록을 모두 지우시겠습니까?')) {
+        localStorage.removeItem('baba_chat_recent_rooms');
+        location.reload();
+      }
+    }
+    
+    function joinRecentRoom(roomId, roomName) {
+      const roomInfo = { id: roomId, name: roomName };
+      AppState.setLastRoom(roomInfo);
+      AppState.addRecentRoom(roomInfo);
+      window.location.href = `join.html?room=${encodeURIComponent(roomId)}`;
+    }
+    
+    function formatTime(isoString) {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return '방금 전';
+      if (diffMins < 60) return `${diffMins}분 전`;
+      if (diffHours < 24) return `${diffHours}시간 전`;
+      if (diffDays < 7) return `${diffDays}일 전`;
+      return date.toLocaleDateString();
+    }
+
+    // ============================================================================
+    // 🛠️ 유틸리티 함수들
+    // ============================================================================
     function showError(elementId, message) {
       const errorElement = document.getElementById(elementId);
       errorElement.textContent = message;

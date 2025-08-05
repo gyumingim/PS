@@ -112,11 +112,15 @@ class RoomService:
         Returns:
             bool: 삭제 성공 여부
         """
-        if room_id in self._rooms:
-            del self._rooms[room_id]
-            print(f"🗑️ 방 '{room_id}' 삭제 완료")
-            return True
-        return False
+
+        # 방 삭제 로직 삭제
+
+        return True
+        # if room_id in self._rooms:
+        #     del self._rooms[room_id]
+        #     print(f"🗑️ 방 '{room_id}' 삭제 완료")
+        #     return True
+        # return False
     
     async def add_user_to_room(self, room_id: str, user_sid: str, username: str) -> tuple[bool, str]:
         """
@@ -173,8 +177,9 @@ class RoomService:
             # 방이 비었는지 확인
             is_empty = room.is_empty()
             if is_empty:
-                # 지연 삭제 스케줄링
-                asyncio.create_task(self._delayed_room_cleanup(room_id))
+                # 방 자동 삭제 비활성화 - 0명이어도 방 유지
+                print(f"💡 방 '{room_id}'가 비었지만 자동 삭제하지 않음")
+                # asyncio.create_task(self._delayed_room_cleanup(room_id))
             
             return True, username, is_empty
         

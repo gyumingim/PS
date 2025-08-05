@@ -150,7 +150,68 @@
       '🚀', '🛸', '🌍', '🌎', '🌏', '🌕', '🌖', '🌗'
     ];
 
-    // 초기화
+    // ============================================================================
+    // 🗄️ localStorage 상태 관리
+    // ============================================================================
+    
+    const AppState = {
+      // 현재 페이지 상태 저장
+      setCurrentPage: (page) => {
+        localStorage.setItem('baba_chat_current_page', page);
+        localStorage.setItem('baba_chat_last_visit', new Date().toISOString());
+      },
+      
+      // 현재 채팅 상태 저장
+      setChatState: (room, username) => {
+        const chatState = {
+          room: room,
+          username: username,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('baba_chat_current_chat', JSON.stringify(chatState));
+      },
+      
+      // 채팅 상태 조회
+      getChatState: () => {
+        const data = localStorage.getItem('baba_chat_current_chat');
+        return data ? JSON.parse(data) : null;
+      },
+      
+      // 채팅 상태 삭제 (방 나가기 시)
+      clearChatState: () => {
+        localStorage.removeItem('baba_chat_current_chat');
+      },
+      
+      // 최근 방 목록에 추가
+      addRecentRoom: (roomInfo) => {
+        let recent = JSON.parse(localStorage.getItem('baba_chat_recent_rooms') || '[]');
+        
+        // 중복 제거
+        recent = recent.filter(r => r.id !== roomInfo.id);
+        
+        // 최신순으로 추가
+        recent.unshift({
+          ...roomInfo,
+          last_visited: new Date().toISOString()
+        });
+        
+        // 최대 5개만 유지
+        recent = recent.slice(0, 5);
+        
+        localStorage.setItem('baba_chat_recent_rooms', JSON.stringify(recent));
+      },
+      
+      // 사용자 설정 조회
+      getSetting: (key, defaultValue = null) => {
+        const settings = JSON.parse(localStorage.getItem('baba_chat_settings') || '{}');
+        return settings[key] || defaultValue;
+      }
+    };
+
+    // ============================================================================
+    // 🎬 초기화
+    // ============================================================================
+    
     document.addEventListener('DOMContentLoaded', () => {
       // URL에서 방 이름과 사용자명 가져오기
       const urlParams = new URLSearchParams(window.location.search);
@@ -166,6 +227,15 @@
       // UI 업데이트
       document.getElementById('currentRoomName').textContent = currentRoom;
       document.getElementById('currentUserName').textContent = currentUsername;
+      
+      // 상태 관리
+      AppState.setCurrentPage('chat');
+      AppState.setChatState(currentRoom, currentUsername);
+      AppState.addRecentRoom({
+        id: currentRoom,
+        name: currentRoom,
+        user_count: 0  // 실제 사용자 수는 join 후에 업데이트
+      });
       
       initializeEmojiPicker();
       connectSocket();
@@ -449,6 +519,10 @@
     // 방 나가기
     function leaveRoom() {
       console.log('🚪 방 나가기 버튼 클릭');
+      
+      // 현재 채팅 상태 삭제
+      AppState.clearChatState();
+      AppState.setCurrentPage('rooms');
       
       if (socket && socket.connected && currentRoom) {
         // 서버에 방 나가기 요청

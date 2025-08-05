@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Set
 from datetime import datetime
 from app.models.chat_models import UserSession, UserInfo
 from app.utils.validators import validate_username
+from app.services.redis_service import get_redis_service
 
 
 class UserService:
@@ -37,7 +38,7 @@ class UserService:
     
     async def create_session(self, user_sid: str, room: str, username: str) -> tuple[bool, str]:
         """
-        사용자 세션 생성
+        사용자 세션 생성 (Redis 기반)
         
         Args:
             user_sid (str): 소켓 ID
@@ -55,16 +56,31 @@ class UserService:
         # 기존 세션이 있으면 정리
         await self.cleanup_session(user_sid)
         
-        # 새 세션 생성
-        session = UserSession(room=room, username=username)
-        self._user_sessions[user_sid] = session
-        
-        print(f"👤 세션 생성: {username} (sid: {user_sid}) → {room}")
-        return True, f"'{username}' 세션이 생성되었습니다."
+        # Redis에 세션 저장
+        try:
+            redis_service = get_redis_service()
+            success = await redis_service.set_user_session(user_sid, room, username)
+            
+            # 메모리에도 백업 저장 (Redis 실패 시 대체용)
+            session = UserSession(room=room, username=username)
+            self._user_sessions[user_sid] = session
+            
+            # 온라인 상태 설정
+            await redis_service.set_user_online(username, room)
+            
+            print(f"👤 세션 생성: {username} (sid: {user_sid}) → {room} {'(Redis)' if success else '(Memory)'}")
+            return True, f"'{username}' 세션이 생성되었습니다."
+            
+        except Exception as e:
+            print(f"❌ Redis 세션 생성 실패: {e}, 메모리 사용")
+            # Redis 실패 시 메모리만 사용
+            session = UserSession(room=room, username=username)
+            self._user_sessions[user_sid] = session
+            return True, f"'{username}' 세션이 생성되었습니다."
     
     async def get_session(self, user_sid: str) -> Optional[UserSession]:
         """
-        사용자 세션 조회
+        사용자 세션 조회 (Redis 우선, 메모리 백업)
         
         Args:
             user_sid (str): 소켓 ID
@@ -72,6 +88,28 @@ class UserService:
         Returns:
             Optional[UserSession]: 세션 객체 (없으면 None)
         """
+        try:
+            # Redis에서 세션 조회
+            redis_service = get_redis_service()
+            redis_session = await redis_service.get_user_session(user_sid)
+            
+            if redis_session:
+                # Redis 데이터를 UserSession 객체로 변환
+                session = UserSession(
+                    room=redis_session["room"],
+                    username=redis_session["username"],
+                    joined_at=redis_session.get("joined_at"),
+                    last_activity=redis_session.get("last_activity")
+                )
+                
+                # 메모리에도 동기화
+                self._user_sessions[user_sid] = session
+                return session
+                
+        except Exception as e:
+            print(f"❌ Redis 세션 조회 실패: {e}, 메모리에서 조회")
+        
+        # Redis 실패 시 메모리에서 조회
         session = self._user_sessions.get(user_sid)
         if session:
             # 활동 시간 업데이트
@@ -80,7 +118,7 @@ class UserService:
     
     async def cleanup_session(self, user_sid: str) -> Optional[str]:
         """
-        사용자 세션 정리
+        사용자 세션 정리 (Redis + 메모리)
         
         Args:
             user_sid (str): 소켓 ID
@@ -88,14 +126,36 @@ class UserService:
         Returns:
             Optional[str]: 정리된 사용자명 (없으면 None)
         """
+        username = None
+        room = None
+        
+        # Redis에서 세션 정보 가져오기
+        try:
+            redis_service = get_redis_service()
+            redis_session = await redis_service.get_user_session(user_sid)
+            if redis_session:
+                username = redis_session["username"]
+                room = redis_session["room"]
+                
+                # Redis에서 세션 삭제
+                await redis_service.remove_user_session(user_sid)
+                # 오프라인 상태 설정
+                await redis_service.set_user_offline(username, room)
+                
+        except Exception as e:
+            print(f"❌ Redis 세션 정리 실패: {e}")
+        
+        # 메모리에서도 세션 정리
         session = self._user_sessions.get(user_sid)
         if session:
-            username = session.username
-            room = session.room
+            if not username:  # Redis에서 가져오지 못한 경우
+                username = session.username
+                room = session.room
             
-            # 세션 제거
+            # 메모리 세션 제거
             del self._user_sessions[user_sid]
-            
+        
+        if username:
             # 타이핑 상태도 정리
             await self.stop_typing(user_sid)
             

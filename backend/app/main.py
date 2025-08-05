@@ -23,14 +23,17 @@ from typing import AsyncGenerator
 
 # 설정 및 서비스 임포트
 from app.config.settings import settings
+from app.services.redis_service import RedisService, get_redis_service
 from app.services.chat_service import ChatService
 from app.controllers.chat_controller import initialize_chat_controller
 import app.services.chat_service as chat_service_module
+import app.services.redis_service as redis_service_module
 
 
 # =============================================================================
 # 🚀 애플리케이션 라이프사이클 관리
 # =============================================================================
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -89,16 +92,23 @@ async def initialize_dependencies() -> None:
     """
     print("🔧 의존성 초기화 중...")
     
-    # 1. Socket.IO 서버 가져오기 (이미 생성됨)
+    # 1. Redis 서비스 초기화
+    global redis_service
+    redis_service = RedisService()
+    await redis_service.connect()
+    redis_service_module.redis_service = redis_service
+    print("   ✅ RedisService 초기화")
+    
+    # 2. Socket.IO 서버 가져오기 (이미 생성됨)
     global sio
     
-    # 2. 채팅 서비스 초기화
+    # 3. 채팅 서비스 초기화
     global chat_service
     chat_service = ChatService(sio)
     chat_service_module.chat_service = chat_service
     print("   ✅ ChatService 초기화")
     
-    # 3. 컨트롤러 초기화 (이벤트 핸들러 등록)
+    # 4. 컨트롤러 초기화 (이벤트 핸들러 등록)
     initialize_chat_controller(sio)
     print("   ✅ ChatController 초기화")
     
@@ -112,14 +122,16 @@ async def cleanup_dependencies() -> None:
     print("🧹 리소스 정리 중...")
     
     try:
+        # Redis 연결 정리
+        if redis_service:
+            await redis_service.disconnect()
+            print("   ✅ Redis 연결 정리")
+        
         # Socket.IO 연결 정리
         if sio:
             # 모든 클라이언트 연결 종료
             await sio.disconnect()
             print("   ✅ Socket.IO 연결 정리")
-        
-        # 기타 정리 작업 (데이터베이스 연결 등)
-        # TODO: 향후 데이터베이스 연결 정리 추가
         
     except Exception as e:
         print(f"   ❌ 리소스 정리 중 오류: {e}")
@@ -138,6 +150,7 @@ sio = socketio.AsyncServer(
 )
 
 # 전역 변수 (의존성 주입용)
+redis_service: RedisService = None
 chat_service: ChatService = None
 
 

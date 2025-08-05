@@ -18,6 +18,7 @@ from datetime import datetime
 from app.models.chat_models import MessageData, MessageType, TypingStatusData
 from app.services.room_service import room_service
 from app.services.user_service import user_service
+from app.services.redis_service import get_redis_service
 from app.utils.validators import validate_message, sanitize_text, extract_mentions
 
 
@@ -81,7 +82,14 @@ class ChatService:
         if mentions:
             await self._handle_mentions(room, username, mentions, clean_message)
         
-        # 7단계: 메시지 브로드캐스트
+        # 7단계: 메시지 히스토리 저장 (Redis)
+        try:
+            redis_service = get_redis_service()
+            await redis_service.save_message_to_history(room, message_data.dict())
+        except Exception as e:
+            print(f"❌ 메시지 히스토리 저장 실패: {e}")
+        
+        # 8단계: 메시지 브로드캐스트
         await self._sio.emit("message", message_data.dict(), room=room)
         
         print(f"💬 메시지 전송: {username} in {room}: '{clean_message[:50]}...'")
@@ -175,6 +183,19 @@ class ChatService:
         
         # 5단계: 입장 알림
         await self.send_system_message(room, f"🔵 {username}님이 입장했습니다.")
+        
+        # 5.5단계: 메시지 히스토리 전송 (Redis)
+        try:
+            redis_service = get_redis_service()
+            recent_messages = await redis_service.get_message_history(room, limit=20)
+            if recent_messages:
+                await self._sio.emit("message_history", {
+                    "messages": recent_messages,
+                    "room": room
+                }, room=user_sid)  # 해당 사용자에게만 전송
+                print(f"📖 메시지 히스토리 전송: {username} → {room} ({len(recent_messages)}개)")
+        except Exception as e:
+            print(f"❌ 메시지 히스토리 로드 실패: {e}")
         
         # 6단계: 실시간 정보 업데이트 (교착상태 방지를 위해 임시 제거)
         # await self.broadcast_user_list(room)
